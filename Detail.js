@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { View, TextInput, Button, Image, StyleSheet, Text, Alert } from "react-native";
+import { View, TextInput, Button, Image, StyleSheet, Text, Alert, Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { app } from "./firebase";
 
 const Detail = ({ route, navigation }) => {
-  const { note, index, updateNote } = route.params;
+  const { note, index, updateNoteInFirestore } = route.params; // Modificeret parameter
+  const [updatedNote, setUpdatedNote] = useState(note.note);
   const [imageUrl, setImageUrl] = useState(note.image || "");
   const [localImageUri, setLocalImageUri] = useState("");
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    console.log("Received note:", note); // Log for debugging
     (async () => {
       if (Platform.OS !== "web") {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -24,12 +24,12 @@ const Detail = ({ route, navigation }) => {
 
   const uploadImage = async (imageUri) => {
     const storage = getStorage(app);
-    const imageName = `images/${Date.now()}`;
+    const imageName = `images/${Date.now()}`; // Unikt navn til billedet
     const ref = storageRef(storage, imageName);
 
     try {
       const imgResponse = await fetch(imageUri);
-      const blob = await imgResponse.blob();
+      const blob = await imgResponse.blob(); // Konverter billede til blob
       const snapshot = await uploadBytes(ref, blob);
       const downloadUrl = await getDownloadURL(snapshot.ref);
       console.log("Upload successful, URL:", downloadUrl);
@@ -42,15 +42,23 @@ const Detail = ({ route, navigation }) => {
 
   const handleSave = async () => {
     setUploading(true);
-    const imageUrlToSave = localImageUri ? await uploadImage(localImageUri) : imageUrl;
-    console.log("Image URL to save:", imageUrlToSave);
-    if (imageUrlToSave) {
-      updateNote(index, { note: note.note, image: imageUrlToSave });
-      navigation.goBack();
-    } else {
-      Alert.alert("Failed to upload image");
+    let imageUrlToSave = imageUrl;
+
+    // Hvis der er valgt et nyt billede, upload det
+    if (localImageUri) {
+      imageUrlToSave = await uploadImage(localImageUri);
+      if (!imageUrlToSave) {
+        Alert.alert("Failed to upload image");
+        setUploading(false);
+        return;
+      }
     }
+
+    // Opdater noten med det nye billede (eller uden, hvis der ikke er ændret noget)
+    const updatedData = { note: updatedNote, image: imageUrlToSave };
+    updateNoteInFirestore(index, updatedData);
     setUploading(false);
+    navigation.goBack();
   };
 
   const handleGetImage = async () => {
@@ -68,15 +76,14 @@ const Detail = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* <TextInput style={styles.input} value={note && note.note ? `Dette her er noten: "${note.note}"` : "Indlæser note..."} editable={false} /> */}
-      <Button title="Save" onPress={handleSave} />
+      <TextInput style={styles.input} value={updatedNote} onChangeText={(text) => setUpdatedNote(text)} placeholder="Edit your note" />
       <Button title="Select Image" onPress={handleGetImage} />
       {localImageUri ? (
         <Image style={styles.image} source={{ uri: localImageUri }} />
       ) : imageUrl ? (
         <Image style={styles.image} source={{ uri: imageUrl }} />
       ) : null}
-      {uploading && <Text>Uploading image...</Text>}
+      {uploading ? <Text>Uploading image...</Text> : <Button title="Save" onPress={handleSave} />}
     </View>
   );
 };
@@ -87,12 +94,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
+    padding: 16,
   },
   input: {
     height: 40,
     borderColor: "gray",
     borderWidth: 1,
-    width: "80%",
+    width: "100%",
     marginBottom: 20,
     paddingHorizontal: 10,
   },

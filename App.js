@@ -1,33 +1,28 @@
 import React, { useState } from "react";
-import { app, database } from "./firebase.js";
-import { collection, addDoc, doc, deleteDoc, updateDoc } from "firebase/firestore";
-import { Button, StyleSheet, Text, View, TextInput, ScrollView, TouchableOpacity } from "react-native";
+import { View, TextInput, FlatList, StyleSheet } from "react-native";
+import { Button, Card, FAB, Text } from "react-native-paper";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 import { useCollection } from "react-firebase-hooks/firestore";
+import { collection, addDoc, doc, deleteDoc, updateDoc } from "firebase/firestore";
+import { database } from "./firebase";
 import Detail from "./Detail";
-import { FlatList } from "react-native-gesture-handler";
 
 const Stack = createStackNavigator();
 
 function HomeScreen({ navigation }) {
   const [note, setNote] = useState("");
-  const [notes, setNotes] = useState([]);
   const [editObj, setEditObj] = useState(null);
   const [values, loading, error] = useCollection(collection(database, "notes"));
   const data = values?.docs.map((doc) => ({ ...doc.data(), id: doc.id }));
 
-  // Tilføjelse af en ny note med billed-URL, hvis tilgængelig
   async function buttonHandler() {
     if (note.trim()) {
       try {
-        const docRef = await addDoc(collection(database, "notes"), {
+        await addDoc(collection(database, "notes"), {
           note: note,
-          image: "", // Vi sætter billed-URL som tomt som standard her
+          image: "", // Billed-URL som tomt som standard
         });
-        console.log("Document written with ID: ", docRef.id);
-
-        setNotes([...notes, { id: docRef.id, note, image: "" }]); // Opdater listen over noter
         setNote("");
       } catch (e) {
         console.error("Error adding document: ", e);
@@ -37,87 +32,64 @@ function HomeScreen({ navigation }) {
     }
   }
 
-  // Sletning af note
   async function deleteDocument(id) {
-    await deleteDoc(doc(database, "notes", id));
-    setNotes(notes.filter((note) => note.id !== id));
-  }
-
-  // Visning af dialog til opdatering af note
-  function viewUpdateDialog(item) {
-    setEditObj(item);
-    setNote(item.note);
-  }
-
-  // Opdatering af note
-  async function saveUpdate() {
-    if (!editObj) return;
-
     try {
-      await updateDoc(doc(database, "notes", editObj.id), {
-        note: note,
-        image: editObj.image || "", // Hvis der allerede er en billed-URL, bevar den
-      });
+      await deleteDoc(doc(database, "notes", id));
+    } catch (e) {
+      console.error("Error deleting document: ", e);
+    }
+  }
 
-      const updatedNotes = notes.map((n) => (n.id === editObj.id ? { ...n, note: note, image: editObj.image || "" } : n));
-      setNotes(updatedNotes);
-
-      setNote("");
-      setEditObj(null);
+  async function updateNoteInFirestore(id, updatedData) {
+    try {
+      await updateDoc(doc(database, "notes", id), updatedData);
     } catch (e) {
       console.error("Error updating document: ", e);
     }
   }
 
-  // Funktion til at opdatere note og billede fra Detail
-  function updateNote(index, updatedNote) {
-    const updatedNotes = notes.map((noteObj, i) => (i === index ? { ...noteObj, ...updatedNote } : noteObj));
-    setNotes(updatedNotes);
-  }
-
   return (
     <View style={styles.container}>
-      {editObj && (
-        <View>
-          <TextInput value={note} onChangeText={(note) => setNote(note)} />
-          <Text style={styles.saveButton} onPress={saveUpdate}>
-            Save
-          </Text>
-        </View>
-      )}
-      <Text>Notes!</Text>
+      <Text style={styles.header}>My Notes</Text>
       <TextInput style={styles.input} placeholder="Add a note" value={note} onChangeText={(text) => setNote(text)} />
-      <Button title="Add Note" onPress={buttonHandler} />
-      <ScrollView style={styles.notesContainer}>
-        {notes.map((noteObj, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.noteButton}
-            onPress={() => navigation.navigate("Detail", { note: noteObj.note, image: noteObj.image, index, updateNote })}
+      {editObj ? (
+        <Button mode="contained" onPress={() => updateNoteInFirestore(editObj.id, { note })} style={styles.saveButton}>
+          Save Changes
+        </Button>
+      ) : (
+        <Button mode="contained" onPress={buttonHandler} style={styles.addButton}>
+          Add Note
+        </Button>
+      )}
+      <FlatList
+        data={data}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <Card
+            style={styles.card}
+            onPress={() =>
+              navigation.navigate("Detail", {
+                note: item,
+                index: item.id,
+                updateNoteInFirestore,
+              })
+            }
           >
-            <Text style={styles.noteItem}>{noteObj.note.length > 25 ? `${noteObj.note.substring(0, 25)}...` : noteObj.note}</Text>
-            {noteObj.image ? <Image source={{ uri: noteObj.image }} style={{ width: 100, height: 100 }} /> : null}{" "}
-            {/* Hvis der er et billede, vis det */}
-          </TouchableOpacity>
-        ))}
-
-        <FlatList
-          data={data}
-          keyExtractor={(item, index) => index.toString()}
-          renderItem={({ item }) => (
-            <View>
-              <Text>{item.note}</Text>
-              {item.image && <Image source={{ uri: item.image }} style={{ width: 100, height: 100 }} />}
-              <Text style={styles.deleteButton} onPress={() => deleteDocument(item.id)}>
+            <Card.Content>
+              <Text style={styles.noteText}>{item.note}</Text>
+            </Card.Content>
+            <Card.Actions>
+              <Button onPress={() => deleteDocument(item.id)} color="red">
                 Delete
-              </Text>
-              <Text style={styles.updateButton} onPress={() => viewUpdateDialog(item)}>
+              </Button>
+              <Button onPress={() => setEditObj(item)} color="blue">
                 Update
-              </Text>
-            </View>
-          )}
-        />
-      </ScrollView>
+              </Button>
+            </Card.Actions>
+          </Card>
+        )}
+      />
+      <FAB style={styles.fab} small icon="plus" onPress={buttonHandler} />
     </View>
   );
 }
@@ -136,38 +108,42 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
+    padding: 16,
+    backgroundColor: "#f5f5f5",
+  },
+  header: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: "center",
   },
   input: {
     height: 40,
     borderColor: "gray",
     borderWidth: 1,
-    width: "80%",
+    width: "100%",
     marginBottom: 20,
     paddingHorizontal: 10,
   },
-  notesContainer: {
-    marginTop: 20,
-    width: "80%",
+  card: {
+    marginVertical: 8,
+    borderRadius: 8,
+    elevation: 2,
   },
-  noteButton: {
-    padding: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
-  },
-  noteItem: {
+  noteText: {
     fontSize: 16,
   },
-  deleteButton: {
-    color: "red",
-  },
-  updateButton: {
-    color: "blue",
+  addButton: {
+    marginBottom: 20,
   },
   saveButton: {
-    color: "blue",
     marginBottom: 20,
+    backgroundColor: "blue",
+  },
+  fab: {
+    position: "absolute",
+    right: 16,
+    bottom: 16,
+    backgroundColor: "#6200ee",
   },
 });
