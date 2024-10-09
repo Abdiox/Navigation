@@ -1,9 +1,14 @@
-import React, { useEffect, useState } from "react";
-import { View, TextInput, Image, StyleSheet, Text, Alert, Platform, ScrollView } from "react-native";
+import React, { useEffect, useState, useRef } from "react";
+import { View, Image, StyleSheet, ScrollView, Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, ref } from "firebase/storage";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Button, Card, ActivityIndicator, TextInput as PaperInput } from "react-native-paper";
-import { app, storage } from "./firebase";
+import MapView, { Marker } from "react-native-maps";
+import { Platform } from "react-native";
+import * as Location from "expo-location";
+import { app } from "./firebase";
+
+const storage = getStorage(app);
 
 const Detail = ({ route, navigation }) => {
   const { note, index, updateNoteInFirestore } = route.params;
@@ -11,6 +16,12 @@ const Detail = ({ route, navigation }) => {
   const [imageUrl, setImageUrl] = useState(note.image || "");
   const [localImageUri, setLocalImageUri] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [showMap, setShowMap] = useState(false);
+  const [region, setRegion] = useState({ latitude: 55, longitude: 12, latitudeDelta: 20, longitudeDelta: 20 }); // Rettet 'longitude'
+  const [markers, setMarkers] = useState([]);
+
+  const mapView = useRef(null);
+  const locationSubscription = useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -24,14 +35,13 @@ const Detail = ({ route, navigation }) => {
   }, []);
 
   const uploadImage = async (imageUri) => {
-    const storage = getStorage(app);
     const imageName = `images/${Date.now()}`;
-    const ref = storageRef(storage, imageName);
+    const imageRef = ref(storage, imageName);
 
     try {
       const imgResponse = await fetch(imageUri);
       const blob = await imgResponse.blob();
-      const snapshot = await uploadBytes(ref, blob);
+      const snapshot = await uploadBytes(imageRef, blob);
       const downloadUrl = await getDownloadURL(snapshot.ref);
       console.log("Upload successful, URL:", downloadUrl);
       return downloadUrl;
@@ -60,6 +70,10 @@ const Detail = ({ route, navigation }) => {
     navigation.goBack();
   };
 
+  const openMap = () => {
+    setShowMap(true);
+  };
+
   const handleGetImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -82,6 +96,20 @@ const Detail = ({ route, navigation }) => {
     } catch (error) {
       alert("Fejl i Image download: " + error.message);
     }
+  }
+
+  function addMarker(data) {
+    const { latitude, longitude } = data.nativeEvent.coordinate; // Rettet 'longitude'
+    const newMarker = {
+      coordinate: { latitude, longitude }, // Rettet 'longitude'
+      key: data.timeStamp,
+      title: "Great Place",
+    };
+    setMarkers([...markers, newMarker]);
+  }
+
+  function onMarkPressed(text) {
+    alert("You have pressed the marker: " + text);
   }
 
   return (
@@ -116,6 +144,22 @@ const Detail = ({ route, navigation }) => {
                 Save
               </Button>
             )}
+
+            <Button mode="contained" icon="map" onPress={openMap} style={styles.saveButton}>
+              Open Map
+            </Button>
+
+            {showMap && (
+              <MapView style={styles.map} region={region} onLongPress={addMarker}>
+                {markers.map((marker) => (
+                  <Marker key={marker.key} coordinate={marker.coordinate} title={marker.title} onPress={() => onMarkPressed(marker.title)} />
+                ))}
+              </MapView>
+            )}
+
+            <Button mode="contained" icon="map" onPress={() => setShowMap(false)} style={styles.saveButton}>
+              Close Map
+            </Button>
           </Card.Content>
         </Card>
       </View>
@@ -124,6 +168,10 @@ const Detail = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  map: {
+    width: "100%",
+    height: 300,
+  },
   scrollContainer: {
     flexGrow: 1,
     justifyContent: "center",
