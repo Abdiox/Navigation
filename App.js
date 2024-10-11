@@ -12,6 +12,7 @@ const Stack = createStackNavigator();
 
 function HomeScreen({ navigation }) {
   const [note, setNote] = useState("");
+  const [location, setLocation] = useState(note.location || {});
   const [editObj, setEditObj] = useState(null);
   const [values, loading, error] = useCollection(collection(database, "notes"));
   const data = values?.docs.map((doc) => ({ ...doc.data(), id: doc.id }));
@@ -19,10 +20,14 @@ function HomeScreen({ navigation }) {
   async function buttonHandler() {
     if (note.trim()) {
       try {
-        await addDoc(collection(database, "notes"), {
-          note: note,
-          image: "", // Billed-URL som tomt som standard
-        });
+await addDoc(collection(database, "notes"), {
+    note: note,
+    image: "", // Billed-URL som tomt som standard
+    location: {
+        latitude: location.latitude ?? null, // Sætter null hvis undefined
+        longitude: location.longitude ?? null, // Sætter null hvis undefined
+    },
+});
         setNote("");
       } catch (e) {
         console.error("Error adding document: ", e);
