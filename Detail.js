@@ -2,14 +2,14 @@ import React, { useEffect, useState, useRef } from "react";
 import { View, Image, StyleSheet, ScrollView, Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { getFirestore, collection, addDoc, getDocs } from "firebase/firestore"; // Firestore imports
+import { getFirestore, collection, addDoc, getDocs } from "firebase/firestore";
 import { Button, Card, ActivityIndicator, TextInput as PaperInput, Paragraph } from "react-native-paper";
 import MapView, { Marker } from "react-native-maps";
 import { Platform } from "react-native";
-import { app } from "./firebase"; // Firebase config
+import { app } from "./firebase";
 
 const storage = getStorage(app);
-const db = getFirestore(app); // Firestore reference
+const db = getFirestore(app);
 
 const Detail = ({ route, navigation }) => {
   const { note, index, updateNoteInFirestore } = route.params;
@@ -21,7 +21,7 @@ const Detail = ({ route, navigation }) => {
   const [showMap, setShowMap] = useState(false);
   const [region, setRegion] = useState({ latitude: 55, longitude: 12, latitudeDelta: 0.0922, longitudeDelta: 0.0421 });
   const [markers, setMarkers] = useState([]);
-  const [selectedImage, setSelectedImage] = useState(null); // For showing the image when a marker is pressed
+  const [selectedImage, setSelectedImage] = useState(null);
 
   const mapView = useRef(null);
 
@@ -110,7 +110,7 @@ const Detail = ({ route, navigation }) => {
   };
 
   const handleMarkerPress = (marker) => {
-    setSelectedImage(marker.imageUrl); // Set the selected image for viewing
+    setSelectedImage(marker.imageUrl);
   };
 
   return (
@@ -129,13 +129,6 @@ const Detail = ({ route, navigation }) => {
             <Button mode="contained" icon="image" onPress={handleGetImage} style={styles.selectImageButton}>
               Select Image
             </Button>
-
-            {/* {localImageUri ? (
-              <Image style={styles.image} source={{ uri: localImageUri }} />
-            ) : imageUrl ? (
-              <Image style={styles.image} source={{ uri: imageUrl }} />
-            ) : null} */}
-
             {uploading ? (
               <ActivityIndicator animating={true} color="#6200ee" style={styles.uploadingIndicator} />
             ) : (

@@ -20,14 +20,14 @@ function HomeScreen({ navigation }) {
   async function buttonHandler() {
     if (note.trim()) {
       try {
-await addDoc(collection(database, "notes"), {
-    note: note,
-    image: "", // Billed-URL som tomt som standard
-    location: {
-        latitude: location.latitude ?? null, // Sætter null hvis undefined
-        longitude: location.longitude ?? null, // Sætter null hvis undefined
-    },
-});
+        await addDoc(collection(database, "notes"), {
+          note: note,
+          image: "",
+          location: {
+            latitude: location.latitude ?? null,
+            longitude: location.longitude ?? null,
+          },
+        });
         setNote("");
       } catch (e) {
         console.error("Error adding document: ", e);
