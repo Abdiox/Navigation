@@ -13,7 +13,7 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 
 const Detail = ({ route, navigation }) => {
-    const { note, index, updateNoteInFirestore } = route.params;
+    const { note, index, updateNoteInFirestore, userId } = route.params; // Bruger userId fra params
     const [updatedNote, setUpdatedNote] = useState(note.note);
     const [imageUrl, setImageUrl] = useState(note.image || "");
     const [location, setLocation] = useState(note.location || {});
@@ -47,6 +47,7 @@ const Detail = ({ route, navigation }) => {
             setMarkers(markersData);
         } catch (error) {
             console.error("Error fetching markers:", error);
+            Alert.alert("Error", "Could not fetch markers. Please try again.");
         }
     };
 
@@ -58,7 +59,8 @@ const Detail = ({ route, navigation }) => {
             const imgResponse = await fetch(imageUri);
             const blob = await imgResponse.blob();
             const snapshot = await uploadBytes(imageRef, blob);
-            return await getDownloadURL(snapshot.ref);
+            const url = await getDownloadURL(snapshot.ref); // Få download-URL
+            return url; // Returner URL
         } catch (error) {
             Alert.alert("Image Upload Failed", "An error occurred while uploading the image. Please try again.");
             console.error("Upload Error:", error.message || error);
@@ -74,12 +76,25 @@ const Detail = ({ route, navigation }) => {
             imageUrlToSave = await uploadImage(localImageUri);
             if (!imageUrlToSave) {
                 setUploading(false);
-                return;
+                return; // Stop hvis upload fejler
             }
         }
 
-        const updatedData = { note: updatedNote, image: imageUrlToSave, location };
-        updateNoteInFirestore(index, updatedData);
+        const updatedData = {
+            note: updatedNote,
+            image: imageUrlToSave,
+            location,
+            userId: userId, // Brug userId fra props
+        };
+
+        try {
+            await updateNoteInFirestore(index, updatedData); // Sørg for at denne funktion håndterer Firestore opdateringer korrekt
+        } catch (error) {
+            Alert.alert("Error Updating Note", "There was a problem updating your note. Please try again.");
+            console.error("Update Error:", error);
+            setUploading(false);
+            return;
+        }
 
         // Tilføj marker-data til Firestore kun ved oprettelse, ikke ved hver redigering
         if (location.latitude && location.longitude && !note.location) {
@@ -89,8 +104,10 @@ const Detail = ({ route, navigation }) => {
                     longitude: location.longitude,
                     imageUrl: imageUrlToSave,
                     note: updatedNote,
+                    userId: userId, // Forbind marker med bruger
                 });
             } catch (error) {
+                Alert.alert("Error Adding Marker", "There was a problem adding your marker. Please try again.");
                 console.error("Error adding marker:", error);
             }
         }
@@ -215,12 +232,6 @@ const styles = StyleSheet.create({
     selectImageButton: {
         marginVertical: 20,
         backgroundColor: "#6200ee",
-    },
-    image: {
-        width: "100%",
-        height: 200,
-        marginVertical: 20,
-        borderRadius: 8,
     },
     selectedImage: {
         width: "100%",

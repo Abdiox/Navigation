@@ -93,6 +93,7 @@ function HomeScreen({ route, navigation }) {
                                 note: item,
                                 index: item.id,
                                 updateNoteInFirestore,
+                                userId: userId, // Send user ID med
                             })
                         }
                     >
