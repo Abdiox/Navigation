@@ -83,7 +83,6 @@ const Detail = ({ route, navigation }) => {
         const updatedData = {
             note: updatedNote,
             image: imageUrlToSave,
-            location,
             userId: userId, // Brug userId fra props
         };
 
@@ -97,7 +96,7 @@ const Detail = ({ route, navigation }) => {
         }
 
         // Tilføj marker-data til Firestore kun ved oprettelse, ikke ved hver redigering
-        if (location.latitude && location.longitude && !note.location) {
+        if (location.latitude && location.longitude) {
             try {
                 await addDoc(collection(db, "markers"), {
                     latitude: location.latitude,
