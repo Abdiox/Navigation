@@ -6,17 +6,17 @@ import { getFirestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCsxF7NsgmkYO3u10zTpxKqJa5uGaBW3rk",
-  authDomain: "myprojectnote-512bf.firebaseapp.com",
-  projectId: "myprojectnote-512bf",
-  storageBucket: "myprojectnote-512bf.appspot.com",
-  messagingSenderId: "521710627912",
-  appId: "1:521710627912:web:158f2c73ad65723551bc7d",
+    apiKey: "AIzaSyBPm0pKb9VVMZHr-euOUaOej3Dg8zcU36g",
+    authDomain: "login-mybro.firebaseapp.com",
+    databaseURL: "https://login-mybro-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "login-mybro",
+    storageBucket: "login-mybro.appspot.com",
+    messagingSenderId: "378425735650",
+    appId: "1:378425735650:web:b66212a1aaac98e104a1bb",
+    measurementId: "G-J8N9EPY623",
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-
 const database = getFirestore(app);
-
-export { app, database };
+export { database, app };

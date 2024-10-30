@@ -5,228 +5,236 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFirestore, collection, addDoc, getDocs } from "firebase/firestore";
 import { Button, Card, ActivityIndicator, TextInput as PaperInput, Paragraph } from "react-native-paper";
 import MapView, { Marker } from "react-native-maps";
-import { Platform } from "react-native";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { app } from "./firebase";
 
 const storage = getStorage(app);
 const db = getFirestore(app);
+const auth = getAuth(app);
 
 const Detail = ({ route, navigation }) => {
-  const { note, index, updateNoteInFirestore } = route.params;
-  const [updatedNote, setUpdatedNote] = useState(note.note);
-  const [imageUrl, setImageUrl] = useState(note.image || "");
-  const [location, setLocation] = useState(note.location || {});
-  const [localImageUri, setLocalImageUri] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [showMap, setShowMap] = useState(false);
-  const [region, setRegion] = useState({ latitude: 55, longitude: 12, latitudeDelta: 0.0922, longitudeDelta: 0.0421 });
-  const [markers, setMarkers] = useState([]);
-  const [selectedImage, setSelectedImage] = useState(null);
+    const { note, index, updateNoteInFirestore } = route.params;
+    const [updatedNote, setUpdatedNote] = useState(note.note);
+    const [imageUrl, setImageUrl] = useState(note.image || "");
+    const [location, setLocation] = useState(note.location || {});
+    const [localImageUri, setLocalImageUri] = useState("");
+    const [uploading, setUploading] = useState(false);
+    const [showMap, setShowMap] = useState(false);
+    const [region, setRegion] = useState({ latitude: 55, longitude: 12, latitudeDelta: 0.0922, longitudeDelta: 0.0421 });
+    const [markers, setMarkers] = useState([]);
+    const [selectedImage, setSelectedImage] = useState(null);
 
-  const mapView = useRef(null);
+    const mapView = useRef(null);
 
-  useEffect(() => {
-    fetchMarkersFromFirestore();
-  }, []);
+    useEffect(() => {
+        const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+            if (!user) {
+                navigation.navigate("Login"); // Rediriger til login, hvis ingen bruger er logget ind
+            }
+        });
+        fetchMarkersFromFirestore();
+        return unsubscribeAuth;
+    }, []);
 
-  const fetchMarkersFromFirestore = async () => {
-    const markersCollection = collection(db, "markers");
-    const markerSnapshot = await getDocs(markersCollection);
-    const markersData = markerSnapshot.docs.map((doc) => ({
-      ...doc.data(),
-      id: doc.id,
-    }));
-    setMarkers(markersData);
-  };
+    const fetchMarkersFromFirestore = async () => {
+        try {
+            const markersCollection = collection(db, "markers");
+            const markerSnapshot = await getDocs(markersCollection);
+            const markersData = markerSnapshot.docs.map((doc) => ({
+                ...doc.data(),
+                id: doc.id,
+            }));
+            setMarkers(markersData);
+        } catch (error) {
+            console.error("Error fetching markers:", error);
+        }
+    };
 
-  const uploadImage = async (imageUri) => {
-    const imageName = `images/${Date.now()}`;
-    const imageRef = ref(storage, imageName);
+    const uploadImage = async (imageUri) => {
+        const imageName = `images/${Date.now()}`;
+        const imageRef = ref(storage, imageName);
 
-    try {
-      const imgResponse = await fetch(imageUri);
-      const blob = await imgResponse.blob();
-      const snapshot = await uploadBytes(imageRef, blob);
-      const downloadUrl = await getDownloadURL(snapshot.ref);
-      console.log("Upload successful, URL:", downloadUrl);
-      return downloadUrl;
-    } catch (error) {
-      console.error("Upload failed:", error);
-      return null;
-    }
-  };
+        try {
+            const imgResponse = await fetch(imageUri);
+            const blob = await imgResponse.blob();
+            const snapshot = await uploadBytes(imageRef, blob);
+            return await getDownloadURL(snapshot.ref);
+        } catch (error) {
+            Alert.alert("Image Upload Failed", "An error occurred while uploading the image. Please try again.");
+            console.error("Upload Error:", error.message || error);
+            return null;
+        }
+    };
 
-  const handleSave = async () => {
-    setUploading(true);
-    let imageUrlToSave = imageUrl;
+    const handleSave = async () => {
+        setUploading(true);
+        let imageUrlToSave = imageUrl;
 
-    if (localImageUri) {
-      imageUrlToSave = await uploadImage(localImageUri);
-      if (!imageUrlToSave) {
-        Alert.alert("Failed to upload image");
+        if (localImageUri) {
+            imageUrlToSave = await uploadImage(localImageUri);
+            if (!imageUrlToSave) {
+                setUploading(false);
+                return;
+            }
+        }
+
+        const updatedData = { note: updatedNote, image: imageUrlToSave, location };
+        updateNoteInFirestore(index, updatedData);
+
+        // Tilføj marker-data til Firestore kun ved oprettelse, ikke ved hver redigering
+        if (location.latitude && location.longitude && !note.location) {
+            try {
+                await addDoc(collection(db, "markers"), {
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                    imageUrl: imageUrlToSave,
+                    note: updatedNote,
+                });
+            } catch (error) {
+                console.error("Error adding marker:", error);
+            }
+        }
+
         setUploading(false);
-        return;
-      }
-    }
+        navigation.goBack();
+    };
 
-    const updatedData = { note: updatedNote, image: imageUrlToSave, location };
-    updateNoteInFirestore(index, updatedData);
+    const openMap = () => {
+        setShowMap((prev) => !prev);
+    };
 
-    // Add marker data to Firestore
-    if (location.latitude && location.longitude) {
-      await addDoc(collection(db, "markers"), {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        imageUrl: imageUrlToSave,
-        note: updatedNote,
-      });
-    }
+    const handleGetImage = async () => {
+        let result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 1,
+        });
 
-    setUploading(false);
-    navigation.goBack();
-  };
+        if (!result.canceled) {
+            setLocalImageUri(result.assets[0].uri);
+        }
+    };
 
-  const openMap = () => {
-    setShowMap(true);
-  };
+    const handleLongPressMap = (data) => {
+        const { latitude, longitude } = data.nativeEvent.coordinate;
+        setLocation({ latitude, longitude });
+        handleGetImage();
+    };
 
-  const handleGetImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
+    const handleMarkerPress = (marker) => {
+        setSelectedImage(marker.imageUrl);
+    };
 
-    if (!result.canceled) {
-      setLocalImageUri(result.assets[0].uri);
-    }
-  };
+    return (
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+            <View style={styles.container}>
+                <Card style={styles.card}>
+                    <Card.Title title="Edit Note" />
+                    <Card.Content>
+                        <PaperInput
+                            mode="outlined"
+                            label="Edit your note"
+                            value={updatedNote}
+                            onChangeText={(text) => setUpdatedNote(text)}
+                            style={styles.input}
+                        />
+                        <Button mode="contained" icon="image" onPress={handleGetImage} style={styles.selectImageButton}>
+                            Select Image
+                        </Button>
+                        {uploading ? (
+                            <ActivityIndicator animating={true} color="#6200ee" style={styles.uploadingIndicator} />
+                        ) : (
+                            <Button mode="contained" icon="content-save" onPress={handleSave} style={styles.saveButton}>
+                                Save
+                            </Button>
+                        )}
 
-  const handleLongPressMap = (data) => {
-    const { latitude, longitude } = data.nativeEvent.coordinate;
-    setLocation({ latitude, longitude });
-    handleGetImage();
-  };
+                        <Button mode="contained" icon={showMap ? "close" : "map"} onPress={openMap} style={styles.saveButton}>
+                            {showMap ? "Close Map" : "Open Map"}
+                        </Button>
 
-  const handleMarkerPress = (marker) => {
-    setSelectedImage(marker.imageUrl);
-  };
+                        {showMap && (
+                            <MapView style={styles.map} region={region} onLongPress={handleLongPressMap}>
+                                {markers.map((marker) => (
+                                    <Marker
+                                        key={marker.id}
+                                        coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
+                                        onPress={() => handleMarkerPress(marker)}
+                                    />
+                                ))}
+                            </MapView>
+                        )}
 
-  return (
-    <ScrollView contentContainerStyle={styles.scrollContainer}>
-      <View style={styles.container}>
-        <Card style={styles.card}>
-          <Card.Title title="Edit Note" />
-          <Card.Content>
-            <PaperInput
-              mode="outlined"
-              label="Edit your note"
-              value={updatedNote}
-              onChangeText={(text) => setUpdatedNote(text)}
-              style={styles.input}
-            />
-            <Button mode="contained" icon="image" onPress={handleGetImage} style={styles.selectImageButton}>
-              Select Image
-            </Button>
-            {uploading ? (
-              <ActivityIndicator animating={true} color="#6200ee" style={styles.uploadingIndicator} />
-            ) : (
-              <Button mode="contained" icon="content-save" onPress={handleSave} style={styles.saveButton}>
-                Save
-              </Button>
-            )}
+                        {selectedImage && (
+                            <View>
+                                <Image source={{ uri: selectedImage }} style={styles.selectedImage} />
+                            </View>
+                        )}
 
-            <Button mode="contained" icon="map" onPress={openMap} style={styles.saveButton}>
-              Open Map
-            </Button>
-
-            {showMap && (
-              <MapView style={styles.map} region={region} onLongPress={handleLongPressMap}>
-                {markers.map((marker) => (
-                  <Marker
-                    key={marker.id}
-                    coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
-                    onPress={() => handleMarkerPress(marker)}
-                  />
-                ))}
-              </MapView>
-            )}
-
-            {selectedImage && (
-              <View>
-                <Image source={{ uri: selectedImage }} style={styles.selectedImage} />
-              </View>
-            )}
-
-            {location.latitude && location.longitude ? (
-              <Card>
-                <Card.Content>
-                  <Card.Title title="Location" />
-                  <Paragraph>
-                    Latitude: {location.latitude}, Longitude: {location.longitude}
-                  </Paragraph>
-                </Card.Content>
-              </Card>
-            ) : null}
-          </Card.Content>
-          <Card.Content>
-            <Button mode="contained" icon="map" onPress={() => setShowMap(false)} style={styles.saveButton}>
-              Close Map
-            </Button>
-          </Card.Content>
-        </Card>
-      </View>
-    </ScrollView>
-  );
+                        {location.latitude && location.longitude ? (
+                            <Card>
+                                <Card.Content>
+                                    <Card.Title title="Location" />
+                                    <Paragraph>
+                                        Latitude: {location.latitude}, Longitude: {location.longitude}
+                                    </Paragraph>
+                                </Card.Content>
+                            </Card>
+                        ) : null}
+                    </Card.Content>
+                </Card>
+            </View>
+        </ScrollView>
+    );
 };
 
 const styles = StyleSheet.create({
-  map: {
-    width: "100%",
-    height: 300,
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: "center",
-  },
-  container: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: "#f5f5f5",
-  },
-  card: {
-    padding: 16,
-    borderRadius: 8,
-    elevation: 4,
-    backgroundColor: "#ffffff",
-  },
-  input: {
-    marginBottom: 20,
-  },
-  selectImageButton: {
-    marginVertical: 20,
-    backgroundColor: "#6200ee",
-  },
-  image: {
-    width: "100%",
-    height: 200,
-    marginVertical: 20,
-    borderRadius: 8,
-  },
-  selectedImage: {
-    width: "100%",
-    height: 300,
-    marginVertical: 20,
-    borderRadius: 8,
-  },
-  saveButton: {
-    backgroundColor: "#6200ee",
-    paddingVertical: 8,
-  },
-  uploadingIndicator: {
-    marginVertical: 20,
-  },
+    map: {
+        width: "100%",
+        height: 300,
+    },
+    scrollContainer: {
+        flexGrow: 1,
+        justifyContent: "center",
+    },
+    container: {
+        flex: 1,
+        padding: 16,
+        backgroundColor: "#f5f5f5",
+    },
+    card: {
+        padding: 16,
+        borderRadius: 8,
+        elevation: 4,
+        backgroundColor: "#ffffff",
+    },
+    input: {
+        marginBottom: 20,
+    },
+    selectImageButton: {
+        marginVertical: 20,
+        backgroundColor: "#6200ee",
+    },
+    image: {
+        width: "100%",
+        height: 200,
+        marginVertical: 20,
+        borderRadius: 8,
+    },
+    selectedImage: {
+        width: "100%",
+        height: 300,
+        marginVertical: 20,
+        borderRadius: 8,
+    },
+    saveButton: {
+        backgroundColor: "#6200ee",
+        paddingVertical: 8,
+    },
+    uploadingIndicator: {
+        marginVertical: 20,
+    },
 });
 
 export default Detail;
