@@ -27,6 +27,7 @@ function HomeScreen({ navigation }) {
             latitude: location.latitude ?? null,
             longitude: location.longitude ?? null,
           },
+          audio: "",
         });
         setNote("");
       } catch (e) {
