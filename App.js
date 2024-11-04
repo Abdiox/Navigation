@@ -21,12 +21,13 @@ function HomeScreen({ navigation }) {
     if (note.trim()) {
       try {
         await addDoc(collection(database, "notes"), {
-          note: note,
+          note,
           image: "",
           location: {
             latitude: location.latitude ?? null,
             longitude: location.longitude ?? null,
           },
+          audio: "",
         });
         setNote("");
       } catch (e) {
@@ -72,13 +73,10 @@ function HomeScreen({ navigation }) {
         renderItem={({ item }) => (
           <Card
             style={styles.card}
-            onPress={() =>
-              navigation.navigate("Detail", {
-                note: item,
-                index: item.id,
-                updateNoteInFirestore,
-              })
-            }
+            onPress={() => {
+              navigation.navigate("Detail", { note: item, index: item.id });
+              navigation.setOptions({ updateNoteInFirestore });
+            }}
           >
             <Card.Content>
               <Text style={styles.noteText}>{item.note}</Text>
@@ -111,44 +109,12 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: "#f5f5f5",
-  },
-  header: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  input: {
-    height: 40,
-    borderColor: "gray",
-    borderWidth: 1,
-    width: "100%",
-    marginBottom: 20,
-    paddingHorizontal: 10,
-  },
-  card: {
-    marginVertical: 8,
-    borderRadius: 8,
-    elevation: 2,
-  },
-  noteText: {
-    fontSize: 16,
-  },
-  addButton: {
-    marginBottom: 20,
-  },
-  saveButton: {
-    marginBottom: 20,
-    backgroundColor: "blue",
-  },
-  fab: {
-    position: "absolute",
-    right: 16,
-    bottom: 16,
-    backgroundColor: "#6200ee",
-  },
+  container: { flex: 1, padding: 16, backgroundColor: "#f5f5f5" },
+  header: { fontSize: 24, fontWeight: "bold", marginBottom: 20, textAlign: "center" },
+  input: { height: 40, borderColor: "gray", borderWidth: 1, width: "100%", marginBottom: 20, paddingHorizontal: 10 },
+  card: { marginVertical: 8, borderRadius: 8, elevation: 2 },
+  noteText: { fontSize: 16 },
+  addButton: { marginBottom: 20 },
+  saveButton: { marginBottom: 20, backgroundColor: "blue" },
+  fab: { position: "absolute", right: 16, bottom: 16, backgroundColor: "#6200ee" },
 });

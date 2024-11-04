@@ -4,8 +4,10 @@ import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFirestore, collection, addDoc, getDocs } from "firebase/firestore";
 import { Button, Card, ActivityIndicator, TextInput as PaperInput, Paragraph } from "react-native-paper";
+import AudioRecorderPlayer from "react-native-audio-recorder-player";
 import MapView, { Marker } from "react-native-maps";
 import { Platform } from "react-native";
+import { requestAndUpdatePermissions } from "./requestAndUpdatePermissions";
 import { app } from "./firebase";
 
 const storage = getStorage(app);
@@ -22,6 +24,11 @@ const Detail = ({ route, navigation }) => {
   const [region, setRegion] = useState({ latitude: 55, longitude: 12, latitudeDelta: 0.0922, longitudeDelta: 0.0421 });
   const [markers, setMarkers] = useState([]);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [audioPath, setAudioPath] = useState(note.audio || ""); // New state for audio path
+  const [recording, setRecording] = useState(false);
+  const [playing, setPlaying] = useState(false);
+
+  const audioRecorderPlayer = useRef(new AudioRecorderPlayer()).current;
 
   const mapView = useRef(null);
 
@@ -69,16 +76,17 @@ const Detail = ({ route, navigation }) => {
       }
     }
 
-    const updatedData = { note: updatedNote, image: imageUrlToSave, location };
+    const updatedData = { note: updatedNote, image: imageUrlToSave, location, audio: audioPath };
     updateNoteInFirestore(index, updatedData);
 
-    // Add marker data to Firestore
+    // Add marker data to Firestore (as in your existing function)
     if (location.latitude && location.longitude) {
       await addDoc(collection(db, "markers"), {
         latitude: location.latitude,
         longitude: location.longitude,
         imageUrl: imageUrlToSave,
         note: updatedNote,
+        audio: audioPath,
       });
     }
 
@@ -111,6 +119,62 @@ const Detail = ({ route, navigation }) => {
 
   const handleMarkerPress = (marker) => {
     setSelectedImage(marker.imageUrl);
+  };
+
+  //////// AUDIO RECORDING FUNCTIONS ////////
+
+  // New checkPermissions function for web
+  const checkPermissions = async () => {
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log("Microphone permission granted");
+    } catch (error) {
+      console.error("Microphone permission denied", error);
+    }
+  };
+
+  const startRecording = async () => {
+    await checkPermissions(); // Call the new checkPermissions function
+
+    try {
+      const uri = await audioRecorderPlayer.startRecorder();
+      setAudioPath(uri); // Set the path where the audio is stored
+      setRecording(true);
+    } catch (error) {
+      console.error("Failed to start recording", error);
+    }
+  };
+
+  // Stop recording
+  const stopRecording = async () => {
+    try {
+      await audioRecorderPlayer.stopRecorder();
+      setRecording(false);
+    } catch (error) {
+      console.error("Failed to stop recording", error);
+    }
+  };
+
+  // Play audio
+  const playAudio = async () => {
+    try {
+      setPlaying(true);
+      await audioRecorderPlayer.startPlayer(audioPath);
+      audioRecorderPlayer.addPlayBackListener((e) => {
+        if (e.current_position >= e.duration) {
+          setPlaying(false);
+          audioRecorderPlayer.stopPlayer();
+        }
+      });
+    } catch (error) {
+      console.error("Failed to play audio", error);
+    }
+  };
+
+  // Stop audio playback
+  const stopAudio = async () => {
+    await audioRecorderPlayer.stopPlayer();
+    setPlaying(false);
   };
 
   return (
@@ -175,6 +239,16 @@ const Detail = ({ route, navigation }) => {
               Close Map
             </Button>
           </Card.Content>
+
+          <Card.Content>
+            <Button mode="contained" icon="microphone" onPress={recording ? stopRecording : startRecording} style={styles.saveButton}>
+              {recording ? "Stop Recording" : "Start Recording"}
+            </Button>
+
+            <Button mode="contained" icon="play" onPress={playing ? stopAudio : playAudio} style={styles.saveButton} disabled={!audioPath}>
+              {playing ? "Stop Audio" : "Play Audio"}
+            </Button>
+          </Card.Content>
         </Card>
       </View>
     </ScrollView>
@@ -184,48 +258,30 @@ const Detail = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   map: {
     width: "100%",
-    height: 300,
+    height: 400,
   },
   scrollContainer: {
-    flexGrow: 1,
-    justifyContent: "center",
+    padding: 20,
   },
   container: {
     flex: 1,
-    padding: 16,
-    backgroundColor: "#f5f5f5",
-  },
-  card: {
-    padding: 16,
-    borderRadius: 8,
-    elevation: 4,
-    backgroundColor: "#ffffff",
   },
   input: {
     marginBottom: 20,
   },
-  selectImageButton: {
-    marginVertical: 20,
-    backgroundColor: "#6200ee",
-  },
-  image: {
-    width: "100%",
-    height: 200,
-    marginVertical: 20,
-    borderRadius: 8,
-  },
-  selectedImage: {
-    width: "100%",
-    height: 300,
-    marginVertical: 20,
-    borderRadius: 8,
-  },
   saveButton: {
-    backgroundColor: "#6200ee",
-    paddingVertical: 8,
+    marginVertical: 10,
+  },
+  selectImageButton: {
+    marginVertical: 10,
   },
   uploadingIndicator: {
-    marginVertical: 20,
+    marginTop: 20,
+  },
+  selectedImage: {
+    width: 100,
+    height: 100,
+    marginVertical: 10,
   },
 });
 
