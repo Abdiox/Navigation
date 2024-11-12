@@ -81,7 +81,7 @@ const Detail = ({ route, navigation }) => {
         const { sound } = await Audio.Sound.createAsync({ uri: audioUrl }, { shouldPlay: true });
 
         setSound(sound);
-        setIsPlaying(true); 
+        setIsPlaying(true);
 
         await sound.playAsync();
 
@@ -215,13 +215,8 @@ const Detail = ({ route, navigation }) => {
             <Button mode="contained" icon="microphone" onPress={recording ? stopRecording : startRecording} style={styles.selectImageButton}>
               {recording ? "Stop Recording" : "Start Recording"}
             </Button>
-            <Button
-              mode="contained"
-              icon={isPlaying ? "pause" : "play"} // Change icon based on playing state
-              onPress={playAudio}
-              style={styles.playButton}
-            >
-              {isPlaying ? "Pause Audio" : "Play Audio"} {/* Change button text */}
+            <Button mode="contained" icon={isPlaying ? "pause" : "play"} onPress={playAudio} style={styles.playButton}>
+              {isPlaying ? "Pause Audio" : "Play Audio"}
             </Button>
             <Button mode="contained" icon="image" onPress={handleGetImage} style={styles.selectImageButton}>
               Select Image
