@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useRef } from "react";
-import { View, Image, StyleSheet, ScrollView, Alert } from "react-native";
+import { View, Image, StyleSheet, ScrollView, Alert, Text } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFirestore, collection, addDoc, getDocs } from "firebase/firestore";
 import { Button, Card, ActivityIndicator, TextInput as PaperInput, Paragraph } from "react-native-paper";
 import MapView, { Marker } from "react-native-maps";
 import { Audio } from "expo-av";
-import { Platform } from "react-native";
 import { app } from "./firebase";
+import LottieView from "lottie-react-native";
 
 const storage = getStorage(app);
 const db = getFirestore(app);
@@ -24,11 +24,11 @@ const Detail = ({ route, navigation }) => {
   const [recording, setRecording] = useState(null);
   const [sound, setSound] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
-
   const [showMap, setShowMap] = useState(false);
   const [region, setRegion] = useState({ latitude: 55, longitude: 12, latitudeDelta: 0.0922, longitudeDelta: 0.0421 });
   const [markers, setMarkers] = useState([]);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
   const mapView = useRef(null);
 
@@ -79,12 +79,10 @@ const Detail = ({ route, navigation }) => {
     if (audioUrl) {
       try {
         const { sound } = await Audio.Sound.createAsync({ uri: audioUrl }, { shouldPlay: true });
-
         setSound(sound);
         setIsPlaying(true);
 
         await sound.playAsync();
-
         sound.setOnPlaybackStatusUpdate((status) => {
           if (status.didJustFinish) {
             setIsPlaying(false);
@@ -93,10 +91,10 @@ const Detail = ({ route, navigation }) => {
         });
       } catch (error) {
         console.error("Failed to play audio", error);
-        Alert.alert("Fejl", "Der opstod en fejl under afspilning af lyden.");
+        Alert.alert("Error", "There was an error playing the audio.");
       }
     } else {
-      Alert.alert("Ingen lyd tilgængelig", "Der er ikke nogen lyd at afspille.");
+      Alert.alert("No Audio Available", "There is no audio to play.");
     }
   };
 
@@ -125,7 +123,6 @@ const Detail = ({ route, navigation }) => {
       const blob = await imgResponse.blob();
       const snapshot = await uploadBytes(imageRef, blob);
       const downloadUrl = await getDownloadURL(snapshot.ref);
-      console.log("Upload successful, URL:", downloadUrl);
       return downloadUrl;
     } catch (error) {
       console.error("Upload failed:", error);
@@ -169,7 +166,12 @@ const Detail = ({ route, navigation }) => {
     }
 
     setUploading(false);
-    navigation.goBack();
+    setShowSuccessAnimation(true);
+
+    setTimeout(() => {
+      setShowSuccessAnimation(false);
+      navigation.goBack();
+    }, 2000);
   };
 
   const openMap = () => {
@@ -202,6 +204,8 @@ const Detail = ({ route, navigation }) => {
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <View style={styles.container}>
+        {showSuccessAnimation && <LottieView source={require("./assets/succes.json")} autoPlay loop={false} style={styles.successAnimation} />}
+
         <Card style={styles.card}>
           <Card.Title title="Edit Note" />
           <Card.Content>
@@ -250,22 +254,6 @@ const Detail = ({ route, navigation }) => {
                 <Image source={{ uri: selectedImage }} style={styles.selectedImage} />
               </View>
             )}
-
-            {location.latitude && location.longitude ? (
-              <Card>
-                <Card.Content>
-                  <Card.Title title="Location" />
-                  <Paragraph>
-                    Latitude: {location.latitude}, Longitude: {location.longitude}
-                  </Paragraph>
-                </Card.Content>
-              </Card>
-            ) : null}
-          </Card.Content>
-          <Card.Content>
-            <Button mode="contained" icon="map" onPress={() => setShowMap(false)} style={styles.saveButton}>
-              Close Map
-            </Button>
           </Card.Content>
         </Card>
       </View>
@@ -274,10 +262,6 @@ const Detail = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  map: {
-    width: "100%",
-    height: 300,
-  },
   scrollContainer: {
     flexGrow: 1,
     justifyContent: "center",
@@ -288,40 +272,42 @@ const styles = StyleSheet.create({
     backgroundColor: "#f5f5f5",
   },
   card: {
-    padding: 16,
-    borderRadius: 8,
-    elevation: 4,
-    backgroundColor: "#ffffff",
+    margin: 16,
   },
   input: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   selectImageButton: {
-    marginVertical: 20,
-    backgroundColor: "#6200ee",
-  },
-  image: {
-    width: 100,
-    height: 100,
-    resizeMode: "cover",
-    marginVertical: 10,
-  },
-  selectedImage: {
-    width: "100%",
-    height: 200,
-    resizeMode: "contain",
-    marginTop: 10,
+    marginTop: 16,
+    backgroundColor: "#4CAF50",
   },
   saveButton: {
-    backgroundColor: "#6200ee",
-    paddingVertical: 8,
-  },
-  uploadingIndicator: {
-    marginVertical: 20,
+    marginTop: 16,
+    backgroundColor: "#3F51B5",
   },
   playButton: {
-    backgroundColor: "#4caf50",
-    marginVertical: 10,
+    marginTop: 16,
+    backgroundColor: "#FFC107",
+  },
+  uploadingIndicator: {
+    marginTop: 16,
+  },
+  map: {
+    height: 200,
+    width: "100%",
+    marginTop: 20,
+  },
+  selectedImage: {
+    width: 100,
+    height: 100,
+    marginTop: 16,
+    alignSelf: "center",
+  },
+  successAnimation: {
+    width: 150,
+    height: 150,
+    alignSelf: "center",
+    marginBottom: 20,
   },
 });
 
