@@ -22,7 +22,8 @@ const Detail = ({ route, navigation }) => {
   const [audioUrl, setAudioUrl] = useState(note.audio || "");
   const [localAudioUri, setLocalAudioUri] = useState("");
   const [recording, setRecording] = useState(null);
-  const [sound, setSound] = useState(null); // State to manage audio playback
+  const [sound, setSound] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const [showMap, setShowMap] = useState(false);
   const [region, setRegion] = useState({ latitude: 55, longitude: 12, latitudeDelta: 0.0922, longitudeDelta: 0.0421 });
@@ -67,7 +68,7 @@ const Detail = ({ route, navigation }) => {
         await recording.stopAndUnloadAsync();
         const uri = recording.getURI();
         setLocalAudioUri(uri);
-        setRecording(null); // Tøm optagelsesstatus
+        setRecording(null);
       }
     } catch (error) {
       console.error("Error stopping recording:", error);
@@ -77,14 +78,25 @@ const Detail = ({ route, navigation }) => {
   const playAudio = async () => {
     if (audioUrl) {
       try {
-        const { sound } = await Audio.Sound.createAsync({ uri: audioUrl });
+        const { sound } = await Audio.Sound.createAsync({ uri: audioUrl }, { shouldPlay: true });
+
         setSound(sound);
+        setIsPlaying(true); 
+
         await sound.playAsync();
+
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.didJustFinish) {
+            setIsPlaying(false);
+            setSound(null);
+          }
+        });
       } catch (error) {
         console.error("Failed to play audio", error);
+        Alert.alert("Fejl", "Der opstod en fejl under afspilning af lyden.");
       }
     } else {
-      Alert.alert("No audio available to play");
+      Alert.alert("Ingen lyd tilgængelig", "Der er ikke nogen lyd at afspille.");
     }
   };
 
@@ -203,8 +215,13 @@ const Detail = ({ route, navigation }) => {
             <Button mode="contained" icon="microphone" onPress={recording ? stopRecording : startRecording} style={styles.selectImageButton}>
               {recording ? "Stop Recording" : "Start Recording"}
             </Button>
-            <Button mode="contained" icon="play" onPress={playAudio} style={styles.playButton}>
-              Play Audio
+            <Button
+              mode="contained"
+              icon={isPlaying ? "pause" : "play"} // Change icon based on playing state
+              onPress={playAudio}
+              style={styles.playButton}
+            >
+              {isPlaying ? "Pause Audio" : "Play Audio"} {/* Change button text */}
             </Button>
             <Button mode="contained" icon="image" onPress={handleGetImage} style={styles.selectImageButton}>
               Select Image
